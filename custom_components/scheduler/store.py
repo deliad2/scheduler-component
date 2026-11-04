@@ -75,20 +75,33 @@ class TagEntry:
     schedules = attr.ib(type=[str], default=[])
 
 
+def _known_fields(entry_class, data: dict) -> dict:
+    """Drop keys that entry_class does not know (e.g. written by another version)."""
+    names = {field.name for field in attr.fields(entry_class)}
+    unknown = set(data) - names
+    if unknown:
+        _LOGGER.debug(
+            "Ignoring unknown %s field(s) in stored data: %s",
+            entry_class.__name__,
+            ", ".join(sorted(unknown)),
+        )
+    return {key: value for key, value in data.items() if key in names}
+
+
 def parse_schedule_data(data: dict):
     if const.ATTR_TIMESLOTS in data:
         timeslots = []
         for item in data[const.ATTR_TIMESLOTS]:
-            timeslot = TimeslotEntry(**item)
+            timeslot = TimeslotEntry(**_known_fields(TimeslotEntry, item))
             if CONF_CONDITIONS in item and item[CONF_CONDITIONS]:
                 conditions = []
                 for condition in item[CONF_CONDITIONS]:
-                    conditions.append(ConditionEntry(**condition))
+                    conditions.append(ConditionEntry(**_known_fields(ConditionEntry, condition)))
                 timeslot = attr.evolve(timeslot, **{CONF_CONDITIONS: conditions})
             if const.ATTR_ACTIONS in item and item[const.ATTR_ACTIONS]:
                 actions = []
                 for action in item[const.ATTR_ACTIONS]:
-                    actions.append(ActionEntry(**action))
+                    actions.append(ActionEntry(**_known_fields(ActionEntry, action)))
                 timeslot = attr.evolve(timeslot, **{const.ATTR_ACTIONS: actions})
             timeslots.append(timeslot)
         data[const.ATTR_TIMESLOTS] = timeslots
